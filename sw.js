@@ -2,7 +2,7 @@
 // Cache-first per gli asset statici, network-first per index.html (così gli
 // aggiornamenti arrivano appena sei online).
 
-const CACHE = "filedeck-v1.1.1";
+const CACHE = "filedeck-v1.1.2";
 const CORE = [
   "./",
   "./index.html",

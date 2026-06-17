@@ -129,6 +129,7 @@
   .fname{font-size:.93rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .fpath{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .fsize{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-soft);flex:none;}
+  .fsize.cloud{color:var(--move);opacity:.8;}
 
   /* ---------- Empty / unsupported ---------- */
   .state{padding:46px 24px;text-align:center;color:var(--ink-soft);}
@@ -549,18 +550,26 @@ async function scan(dirHandle, prefix, out, depth){
       try{
         if(entry.kind === "file"){
           if(SKIP_FILES.has(entry.name)) continue;
-          let file;
-          try{ file = await entry.getFile(); }
-          catch(_){ continue; } // file non leggibile: lo salto, vado avanti
+          // Provo a leggere dimensione/tipo/data. Se fallisce (tipico dei file
+          // iCloud "non scaricati" o di rete), NON scarto il file: lo elenco
+          // comunque ricavando il tipo dal nome. Così i file singoli si vedono.
+          let size = 0, type = "", mtime = 0, unread = false;
+          try{
+            const file = await entry.getFile();
+            size = file.size; type = file.type || ""; mtime = file.lastModified || 0;
+          }catch(_){
+            unread = true;
+          }
           out.push({
-            id: prefix + entry.name + "·" + file.size + "·" + file.lastModified,
+            id: prefix + entry.name + "·" + size + "·" + mtime,
             name: entry.name,
             relPath: prefix + entry.name,
-            size: file.size,
-            type: file.type || "",
-            mtime: file.lastModified || 0,
-            kind: kindOf(entry.name, file.type || ""),
+            size: size,
+            type: type,
+            mtime: mtime,
+            kind: kindOf(entry.name, type),
             isDir: false,
+            unread: unread,
             handle: entry,
             parent: dirHandle,
             selected: false
@@ -633,7 +642,7 @@ function computeFiltered(){
 function rowHtml(e){
   const sizeLabel = e.isDir
     ? (e.childCount >= 999 ? "999+ elementi" : e.childCount + (e.childCount === 1 ? " elemento" : " elementi"))
-    : fmtBytes(e.size);
+    : (e.unread ? "☁ in cloud" : fmtBytes(e.size));
   return `<li class="row ${e.selected ? "sel":""}" data-id="${escapeHtml(e.id)}">
       <span class="check ${e.selected ? "on":""}" aria-hidden="true"></span>
       <span class="kind">${ICONS[e.kind]}</span>
@@ -641,7 +650,7 @@ function rowHtml(e){
         <span class="fname">${escapeHtml(e.name)}</span>
         ${e.relPath !== e.name ? `<span class="fpath">${escapeHtml(e.relPath)}</span>` : ""}
       </span>
-      <span class="fsize">${sizeLabel}</span>
+      <span class="fsize${e.unread ? " cloud":""}">${sizeLabel}</span>
     </li>`;
 }
 
