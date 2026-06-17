@@ -26,6 +26,13 @@ Il TriageHub pubblicato dichiara: *"non sposta i file, non cestina i file, un'ap
 
 > ⚠️ **Le operazioni sono reali e NON passano dal Cestino.** Lo spostamento è una copia nella destinazione seguita dalla rimozione dell'originale. Controlla sempre la selezione prima di confermare.
 
+## Se non vedi i file
+
+- FileDeck ora apre la cartella in **sola lettura** e mostra subito i file; il permesso di **scrittura** viene chiesto solo quando premi *Sposta* o *Cancella*. Così vedi i file anche su Scrivania/Documenti/Download, dove Windows e macOS limitano la scrittura.
+- Serve **HTTPS** (o `localhost`). Aprendo il file con doppio clic (`file://`) il selettore cartelle può non funzionare: pubblica su GitHub Pages e apri l'URL `https://…`.
+- Usa una **scheda intera** del browser, non un'anteprima dentro un riquadro/iframe: in quel contesto il browser blocca l'accesso ai file.
+- Quando il browser chiede il permesso, scegli **Visualizza/consenti**. Se per errore hai negato, riapri la cartella.
+
 ## Pubblicare su GitHub Pages
 
 1. Crea un nuovo repo (es. `FileDeck`) e carica tutti questi file mantenendo la struttura:

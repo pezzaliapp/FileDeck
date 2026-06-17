@@ -472,24 +472,43 @@ async function openFolder(){
   if(!FSA) return;
   let handle;
   try{
-    handle = await window.showDirectoryPicker({ mode:"readwrite", id:"filedeck", startIn:"desktop" });
+    handle = await window.showDirectoryPicker({ id:"filedeck", startIn:"desktop", mode:"readwrite" });
   }catch(err){
     if(err && err.name === "AbortError") return;
-    toast("Impossibile aprire la cartella.", "err");
+    console.error(err);
+    if(err && err.name === "SecurityError"){
+      toast("Il browser ha bloccato l'accesso in questo contesto. Apri FileDeck in una scheda intera su https.", "err");
+    } else {
+      toast("Impossibile aprire la cartella. Riprova o scegline un'altra.", "err");
+    }
     return;
   }
-  // Permesso readwrite (alcuni browser separano query/request)
-  try{
-    if(handle.requestPermission){
-      const p = await handle.requestPermission({ mode:"readwrite" });
-      if(p !== "granted"){ toast("Permesso di scrittura negato.", "err"); return; }
-    }
-  }catch(_){}
 
+  // NON blocco sui permessi: la lettura di solito è consentita anche dove la
+  // scrittura è limitata. Il permesso di scrittura lo chiedo al momento di
+  // spostare/cancellare, così intanto vedi comunque tutti i file.
   state.rootHandle = handle;
   state.rootName = handle.name;
   el.empty.style.display = "none";
   await runScan();
+
+  if(state.files.length === 0){
+    el.empty.style.display = "block";
+    el.badge.textContent = "cartella letta · 0 elementi";
+    el.stTitle.textContent = "Nessun file trovato in “" + handle.name + "”";
+    el.stText.innerHTML = "La cartella potrebbe essere vuota oppure il browser ne ha limitato l'accesso. Prova a sceglierne un'altra (per esempio una sottocartella dei Documenti) e concedi il permesso quando richiesto.";
+  }
+}
+
+// Garantisce il permesso di scrittura su un handle, chiedendolo se serve.
+async function ensureWrite(handle){
+  try{
+    if(!handle || !handle.queryPermission) return true;
+    let p = await handle.queryPermission({ mode:"readwrite" });
+    if(p === "granted") return true;
+    p = await handle.requestPermission({ mode:"readwrite" });
+    return p === "granted";
+  }catch(_){ return true; }
 }
 
 // Esegue (o riesegue) la scansione della cartella radice corrente.
@@ -751,6 +770,11 @@ el.trash.addEventListener("click", async () => {
   });
   if(!ok) return;
 
+  if(!(await ensureWrite(state.rootHandle))){
+    toast("Per cancellare serve il permesso di modifica della cartella.", "err");
+    return;
+  }
+
   let done = 0, err = 0;
   const removed = new Set();
   for(const f of sel){
@@ -810,12 +834,10 @@ el.move.addEventListener("click", async () => {
     toast("Impossibile aprire la cartella di destinazione.", "err");
     return;
   }
-  try{
-    if(destRoot.requestPermission){
-      const p = await destRoot.requestPermission({ mode:"readwrite" });
-      if(p !== "granted"){ toast("Permesso negato sulla destinazione.", "err"); return; }
-    }
-  }catch(_){}
+  if(!(await ensureWrite(destRoot))){
+    toast("Permesso di scrittura negato sulla cartella di destinazione.", "err");
+    return;
+  }
 
   const keepStructure = state.deep && sel.some(f => !f.isDir && f.relPath.includes("/"));
   const folders = sel.filter(f => f.isDir).length;
@@ -827,6 +849,11 @@ el.move.addEventListener("click", async () => {
     danger: false
   });
   if(!ok) return;
+
+  if(!(await ensureWrite(state.rootHandle))){
+    toast("Per rimuovere gli originali serve il permesso di modifica della cartella d'origine.", "err");
+    return;
+  }
 
   let done = 0, err = 0;
   const used = new Map(); // chiave cartella-destinazione → Set nomi già usati
