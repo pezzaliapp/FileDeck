@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2C4BCF">
-<title>FileDeck — sposta e cancella file sul serio</title>
+<title>FileDeck — sposta e cancella file</title>
 <meta name="description" content="PWA offline e privacy-first per spostare i tuoi file in una cartella a tua scelta o cancellarli davvero dal disco. Niente upload, niente account, niente server.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -113,6 +113,13 @@
   .check{width:19px;height:19px;flex:none;border:1.5px solid var(--line-strong);border-radius:6px;background:var(--surface);cursor:pointer;display:grid;place-items:center;}
   .check.on{background:var(--move);border-color:var(--move);}
   .check.on::after{content:"✓";color:#fff;font-size:.8rem;font-weight:700;}
+  .check.some{background:var(--select);border-color:var(--select);}
+  .check.some::after{content:"–";color:#fff;font-size:.85rem;font-weight:800;line-height:1;}
+  .group{display:flex;align-items:center;gap:11px;padding:14px 16px 7px;border-top:1px solid var(--line);cursor:pointer;user-select:none;}
+  .group:hover .group-label{color:var(--move);}
+  .group-ico{font-size:.95rem;flex:none;}
+  .group-label{font-family:var(--font-display);font-weight:700;font-size:.95rem;letter-spacing:-.01em;}
+  .group-meta{margin-left:auto;font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);}
   .list{list-style:none;margin:0;padding:0;max-height:none;}
   .row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--line);cursor:pointer;}
   .row:hover{background:var(--surface-2);}
@@ -198,9 +205,68 @@
     *{animation:none!important;transition:none!important;}
   }
   :focus-visible{outline:2.5px solid var(--move);outline-offset:2px;border-radius:4px;}
+
+  /* ---------- Disclaimer (apertura) ---------- */
+  .intro{position:fixed;inset:0;background:rgba(27,29,34,.5);z-index:90;display:none;align-items:center;justify-content:center;padding:20px;}
+  .intro.on{display:flex;}
+  .intro-card{background:var(--surface);border-radius:18px;max-width:520px;width:100%;box-shadow:var(--shadow);overflow:hidden;max-height:90vh;display:flex;flex-direction:column;}
+  .intro-head{display:flex;align-items:center;gap:12px;padding:22px 24px 0;}
+  .intro-head .mark{width:38px;height:38px;}
+  .intro-head h2{font-family:var(--font-display);font-weight:800;font-size:1.35rem;margin:0;letter-spacing:-.02em;}
+  .intro-head h2 b{color:var(--move);}
+  .intro-body{padding:18px 24px 6px;overflow:auto;}
+  .intro-lead{font-size:.95rem;color:var(--ink);margin:0 0 16px;}
+  .intro-point{display:flex;gap:11px;align-items:flex-start;margin:0 0 13px;font-size:.9rem;line-height:1.5;}
+  .intro-point .dot{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.95rem;}
+  .intro-point .dot.warn{background:#fbeceb;color:var(--trash);}
+  .intro-point .dot.lock{background:#e7f1ec;color:var(--ok);}
+  .intro-point .dot.real{background:#e8ecfb;color:var(--move);}
+  .intro-point .dot.gate{background:var(--surface-2);color:var(--ink-soft);}
+  .intro-point b{font-weight:600;}
+  .intro-note{font-size:.8rem;color:var(--ink-soft);background:var(--surface-2);border-radius:10px;padding:11px 13px;margin-top:4px;}
+  .intro-foot{padding:14px 24px;border-top:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .intro-foot label{display:flex;align-items:center;gap:8px;font-size:.84rem;color:var(--ink-soft);cursor:pointer;user-select:none;}
+  .intro-foot input{width:16px;height:16px;accent-color:var(--move);}
+  .intro-foot .btn{margin-left:auto;}
 </style>
 </head>
 <body>
+<!-- Disclaimer all'apertura -->
+<div class="intro" id="intro" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+  <div class="intro-card">
+    <div class="intro-head">
+      <div class="mark" aria-hidden="true"></div>
+      <h2 id="introTitle">Benvenuto su File<b>Deck</b></h2>
+    </div>
+    <div class="intro-body">
+      <p class="intro-lead">Prima di iniziare, leggi come funziona. FileDeck agisce sui file veri del tuo disco, quindi è bene saperlo.</p>
+
+      <div class="intro-point">
+        <span class="dot real" aria-hidden="true">⚡</span>
+        <span><b>Operazioni reali.</b> Quando sposti o cancelli, FileDeck modifica davvero i file sul tuo computer — non genera un report o una simulazione.</span>
+      </div>
+      <div class="intro-point">
+        <span class="dot warn" aria-hidden="true">!</span>
+        <span><b>Niente Cestino, niente annulla.</b> I file cancellati spariscono subito; lo spostamento copia nella destinazione e poi rimuove l'originale. Controlla sempre la selezione prima di confermare.</span>
+      </div>
+      <div class="intro-point">
+        <span class="dot lock" aria-hidden="true">🔒</span>
+        <span><b>Privacy totale.</b> Tutto avviene nel tuo browser: nessun file viene caricato online, nessun account, nessun server. I tuoi dati non lasciano il computer.</span>
+      </div>
+      <div class="intro-point">
+        <span class="dot gate" aria-hidden="true">🖥️</span>
+        <span><b>Solo browser desktop compatibili.</b> Servono Chrome, Edge o Opera su computer. Su Safari, Firefox e iPhone/Android l'accesso ai file non è disponibile.</span>
+      </div>
+
+      <p class="intro-note">Usi FileDeck sotto la tua responsabilità: verifica i file selezionati e, se possibile, tieni un backup di ciò che conta. Software fornito “così com'è”, senza garanzie (licenza MIT).</p>
+    </div>
+    <div class="intro-foot">
+      <label><input type="checkbox" id="introDontShow"> Non mostrare più</label>
+      <button class="btn btn-primary" id="introOk" type="button">Ho capito, procedi</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
   <header>
     <div class="brand">
@@ -210,7 +276,7 @@
       </div>
       <button class="help-btn" id="helpBtn" type="button">Come funziona</button>
     </div>
-    <p class="tagline">Apri una cartella, scegli i file, poi <b>spostali dove vuoi</b> o <b>cancellali sul serio</b> dal disco. Tutto nel tuo browser: niente upload, niente account, niente server.</p>
+    <p class="tagline">Apri una cartella, scegli i file, poi <b>spostali in una cartella a tua scelta</b> o <b>eliminali dal disco</b>. Tutto nel tuo browser: niente upload, niente account, niente server.</p>
   </header>
 
   <main class="panel" id="panel">
@@ -228,6 +294,7 @@
       <div class="field"><input type="text" id="search" placeholder="Cerca per nome…" autocomplete="off"></div>
       <select id="kindFilter" aria-label="Filtra per tipo">
         <option value="">Tutti i tipi</option>
+        <option value="folder">Cartelle</option>
         <option value="image">Immagini</option>
         <option value="video">Video</option>
         <option value="audio">Audio</option>
@@ -327,7 +394,8 @@ const el = {
   tray:$("tray"), stackN:$("stackN"), trayCount:$("trayCount"), traySub:$("traySub"),
   move:$("moveBtn"), trash:$("trashBtn"), clear:$("clearBtn"),
   scrim:$("scrim"), mTitle:$("mTitle"), mText:$("mText"), mFiles:$("mFiles"), mOk:$("mOk"), mCancel:$("mCancel"),
-  toast:$("toast"), help:$("helpBtn")
+  toast:$("toast"), help:$("helpBtn"),
+  intro:$("intro"), introOk:$("introOk"), introDontShow:$("introDontShow")
 };
 
 // ---------- Helpers ----------
@@ -340,7 +408,7 @@ function fmtBytes(n){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
-const ICONS = {image:"🖼️",video:"🎬",audio:"🎵",doc:"📄",archive:"🗜️",other:"📦"};
+const ICONS = {folder:"📁",image:"🖼️",video:"🎬",audio:"🎵",doc:"📄",archive:"🗜️",other:"📦"};
 function kindOf(name, type){
   const ext = (name.split(".").pop()||"").toLowerCase();
   if(/^image\//.test(type) || /^(jpe?g|png|gif|webp|heic|heif|bmp|svg|tiff?)$/.test(ext)) return "image";
@@ -442,7 +510,7 @@ async function scan(dirHandle, prefix, out, depth){
   for await (const entry of dirHandle.values()){
     if(out.length >= MAX_FILES) return;
     if(entry.kind === "file"){
-      // Salto cartelle di sistema irrilevanti
+      // Salto file di sistema irrilevanti
       if(entry.name === ".DS_Store") continue;
       let file;
       try{ file = await entry.getFile(); }catch(_){ continue; }
@@ -454,18 +522,51 @@ async function scan(dirHandle, prefix, out, depth){
         type: file.type || "",
         mtime: file.lastModified || 0,
         kind: kindOf(entry.name, file.type || ""),
+        isDir: false,
         handle: entry,
         parent: dirHandle,
         selected: false
       });
-    } else if(entry.kind === "directory" && state.recursive && depth < MAX_DEPTH){
+    } else if(entry.kind === "directory"){
       if(entry.name === "_FileDeck_Spostati") continue;
-      await scan(entry, prefix + entry.name + "/", out, depth + 1);
+      if(state.recursive && depth < MAX_DEPTH){
+        // Vista ricorsiva: scendo dentro la cartella e ne elenco i file
+        await scan(entry, prefix + entry.name + "/", out, depth + 1);
+      } else if(!state.recursive && depth === 0){
+        // Vista "scrivania": la cartella stessa diventa un elemento, accanto
+        // ai file sciolti, e potrà essere spostata o cancellata col contenuto.
+        let childCount = 0;
+        try{ for await (const _ of entry.values()){ childCount++; if(childCount >= 999) break; } }catch(_){}
+        out.push({
+          id: prefix + entry.name + "·dir",
+          name: entry.name,
+          relPath: prefix + entry.name,
+          size: 0,
+          type: "",
+          mtime: 0,
+          kind: "folder",
+          isDir: true,
+          childCount,
+          handle: entry,
+          parent: dirHandle,
+          selected: false
+        });
+      }
     }
   }
 }
 
 // ---------- Render ----------
+const GROUPS = [
+  { key:"folder",  label:"Cartelle",   icon:"📁" },
+  { key:"image",   label:"Immagini",   icon:"🖼️" },
+  { key:"video",   label:"Video",      icon:"🎬" },
+  { key:"audio",   label:"Audio",      icon:"🎵" },
+  { key:"doc",     label:"Documenti",  icon:"📄" },
+  { key:"archive", label:"Archivi",    icon:"🗜️" },
+  { key:"other",   label:"Altro",      icon:"📦" }
+];
+
 function computeFiltered(){
   const q = el.search.value.trim().toLowerCase();
   const k = el.kind.value;
@@ -476,28 +577,58 @@ function computeFiltered(){
   });
   const by = el.sort.value;
   arr.sort((a,b) => {
-    if(by === "size") return b.size - a.size;
-    if(by === "date") return b.mtime - a.mtime;
+    // Le cartelle si ordinano sempre per nome (dimensione/data non significative)
+    if(!a.isDir && !b.isDir){
+      if(by === "size") return b.size - a.size;
+      if(by === "date") return b.mtime - a.mtime;
+    }
     return a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:"base"});
   });
   state.filtered = arr;
 }
 
+function rowHtml(e){
+  const sizeLabel = e.isDir
+    ? (e.childCount >= 999 ? "999+ elementi" : e.childCount + (e.childCount === 1 ? " elemento" : " elementi"))
+    : fmtBytes(e.size);
+  return `<li class="row ${e.selected ? "sel":""}" data-id="${escapeHtml(e.id)}">
+      <span class="check ${e.selected ? "on":""}" aria-hidden="true"></span>
+      <span class="kind">${ICONS[e.kind]}</span>
+      <span class="meta">
+        <span class="fname">${escapeHtml(e.name)}</span>
+        ${e.relPath !== e.name ? `<span class="fpath">${escapeHtml(e.relPath)}</span>` : ""}
+      </span>
+      <span class="fsize">${sizeLabel}</span>
+    </li>`;
+}
+
 function renderList(){
   const arr = state.filtered;
-  el.list.innerHTML = arr.map(f => `
-    <li class="row ${f.selected ? "sel":""}" data-id="${escapeHtml(f.id)}">
-      <span class="check ${f.selected ? "on":""}" aria-hidden="true"></span>
-      <span class="kind">${ICONS[f.kind]}</span>
-      <span class="meta">
-        <span class="fname">${escapeHtml(f.name)}</span>
-        ${f.relPath !== f.name ? `<span class="fpath">${escapeHtml(f.relPath)}</span>` : ""}
-      </span>
-      <span class="fsize">${fmtBytes(f.size)}</span>
-    </li>`).join("");
-  el.visCount.textContent = arr.length + (arr.length === 1 ? " file" : " file");
-  const allSel = arr.length > 0 && arr.every(f => f.selected);
-  el.selectAll.classList.toggle("on", allSel);
+  const byKey = {};
+  for(const e of arr){ (byKey[e.kind] = byKey[e.kind] || []).push(e); }
+
+  let html = "";
+  for(const g of GROUPS){
+    const items = byKey[g.key];
+    if(!items || !items.length) continue;
+    const groupBytes = items.reduce((s,e) => s + (e.size||0), 0);
+    const allSel = items.every(e => e.selected);
+    const someSel = !allSel && items.some(e => e.selected);
+    const meta = items.length + " " + (items.length === 1 ? "elemento" : "elementi") +
+                 (g.key !== "folder" ? " · " + fmtBytes(groupBytes) : "");
+    html += `<li class="group" data-group="${g.key}">
+        <span class="check group-check ${allSel ? "on" : someSel ? "some" : ""}" data-group="${g.key}" role="checkbox" tabindex="0" aria-label="Seleziona ${g.label}"></span>
+        <span class="group-ico">${g.icon}</span>
+        <span class="group-label">${g.label}</span>
+        <span class="group-meta">${meta}</span>
+      </li>`;
+    for(const e of items) html += rowHtml(e);
+  }
+  el.list.innerHTML = html;
+
+  el.visCount.textContent = arr.length + (arr.length === 1 ? " elemento" : " elementi");
+  const allSelGlobal = arr.length > 0 && arr.every(e => e.selected);
+  el.selectAll.classList.toggle("on", allSelGlobal);
 }
 
 function refresh(){
@@ -507,36 +638,52 @@ function refresh(){
   el.empty.style.display = has ? "none" : "block";
 
   if(state.rootHandle){
-    const total = state.files.reduce((s,f)=>s+f.size,0);
+    const files = state.files.filter(f => !f.isDir);
+    const folders = state.files.filter(f => f.isDir);
+    const total = files.reduce((s,f)=>s+f.size,0);
+    const parts = [];
+    parts.push(files.length + (files.length === 1 ? " file" : " file"));
+    if(folders.length) parts.push(folders.length + (folders.length === 1 ? " cartella" : " cartelle"));
     el.src.innerHTML = `<span class="src-name">📁 ${escapeHtml(state.rootName)}</span>
-      <span class="src-meta">${state.files.length} file · ${fmtBytes(total)}${state.recursive ? " · incl. sottocartelle":""}</span>`;
+      <span class="src-meta">${parts.join(" · ")} · ${fmtBytes(total)}${state.recursive ? " · incl. sottocartelle":""}</span>`;
   }
   if(has){ computeFiltered(); renderList(); }
   updateTray();
 }
 
 // ---------- Selection ----------
-function selectedFiles(){ return state.files.filter(f => f.selected); }
+function selectedItems(){ return state.files.filter(f => f.selected); }
 function updateTray(){
-  const sel = selectedFiles();
+  const sel = selectedItems();
   if(sel.length === 0){ el.tray.classList.remove("up"); return; }
-  const bytes = sel.reduce((s,f)=>s+f.size,0);
+  const bytes = sel.reduce((s,f)=>s+(f.size||0),0);
+  const folders = sel.filter(f => f.isDir).length;
   el.stackN.textContent = sel.length > 99 ? "99+" : sel.length;
-  el.trayCount.textContent = sel.length + (sel.length === 1 ? " file selezionato" : " file selezionati");
-  el.traySub.textContent = fmtBytes(bytes);
+  el.trayCount.textContent = sel.length + (sel.length === 1 ? " elemento selezionato" : " elementi selezionati");
+  el.traySub.textContent = fmtBytes(bytes) + (folders ? " · " + folders + (folders === 1 ? " cartella" : " cartelle") : "");
   el.tray.classList.add("up");
 }
 
+function toggleGroup(key){
+  const items = state.filtered.filter(e => e.kind === key);
+  if(!items.length) return;
+  const allSel = items.every(e => e.selected);
+  items.forEach(e => e.selected = !allSel);
+  renderList();
+  updateTray();
+}
+
 el.list.addEventListener("click", e => {
+  // Click su intestazione di gruppo (o sulla sua casella) → seleziona il gruppo
+  const groupRow = e.target.closest(".group");
+  if(groupRow){ toggleGroup(groupRow.dataset.group); return; }
+  // Click su una riga → seleziona il singolo elemento
   const row = e.target.closest(".row");
   if(!row) return;
   const f = state.files.find(x => x.id === row.dataset.id);
   if(!f) return;
   f.selected = !f.selected;
-  row.classList.toggle("sel", f.selected);
-  row.querySelector(".check").classList.toggle("on", f.selected);
-  const allSel = state.filtered.length > 0 && state.filtered.every(x => x.selected);
-  el.selectAll.classList.toggle("on", allSel);
+  renderList();
   updateTray();
 });
 
@@ -565,14 +712,19 @@ el.recursive.addEventListener("change", () => {
 
 // ---------- Delete ----------
 el.trash.addEventListener("click", async () => {
-  const sel = selectedFiles();
+  const sel = selectedItems();
   if(!sel.length) return;
-  const bytes = sel.reduce((s,f)=>s+f.size,0);
+  const bytes = sel.reduce((s,f)=>s+(f.size||0),0);
+  const folders = sel.filter(f => f.isDir).length;
+  const files = sel.length - folders;
+  const parts = [];
+  if(files) parts.push(files + (files === 1 ? " file" : " file") + " (" + fmtBytes(bytes) + ")");
+  if(folders) parts.push(folders + (folders === 1 ? " cartella con tutto il contenuto" : " cartelle con tutto il contenuto"));
   const ok = await askConfirm({
     title: "Cancellare definitivamente?",
-    text: `Stai per eliminare ${sel.length} file (${fmtBytes(bytes)}) dal disco. L'operazione non passa dal Cestino e non è annullabile.`,
-    files: sel.map(f => f.relPath),
-    okLabel: "Cancella " + sel.length + " file",
+    text: `Stai per eliminare ${parts.join(" e ")} dal disco. L'operazione non passa dal Cestino e non è annullabile.`,
+    files: sel.map(f => (f.isDir ? "📁 " : "") + f.relPath),
+    okLabel: "Cancella " + sel.length + (sel.length === 1 ? " elemento" : " elementi"),
     danger: true
   });
   if(!ok) return;
@@ -581,14 +733,14 @@ el.trash.addEventListener("click", async () => {
   const removed = new Set();
   for(const f of sel){
     try{
-      await f.parent.removeEntry(f.name);
+      await f.parent.removeEntry(f.name, f.isDir ? { recursive:true } : undefined);
       removed.add(f.id); done++;
     }catch(e){ console.error("delete", f.relPath, e); err++; }
   }
   state.files = state.files.filter(f => !removed.has(f.id));
   refresh();
   if(err) toast(`Cancellati ${done}, ${err} non riusciti.`, "err");
-  else toast(`Cancellati ${done} file.`, "ok");
+  else toast(`Cancellati ${done} ${done === 1 ? "elemento" : "elementi"}.`, "ok");
 });
 
 // ---------- Move ----------
@@ -608,9 +760,24 @@ async function ensureSubdir(root, relPath){
   for(const p of parts){ if(p) dir = await dir.getDirectoryHandle(p, { create:true }); }
   return dir;
 }
+// Copia ricorsivamente una cartella (e tutto il contenuto) dentro destParent.
+async function copyDirInto(srcDir, destParent, name){
+  const newDir = await destParent.getDirectoryHandle(name, { create:true });
+  for await (const entry of srcDir.values()){
+    if(entry.kind === "file"){
+      const blob = await entry.getFile();
+      const fh = await newDir.getFileHandle(entry.name, { create:true });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+    } else if(entry.kind === "directory"){
+      await copyDirInto(entry, newDir, entry.name);
+    }
+  }
+}
 
 el.move.addEventListener("click", async () => {
-  const sel = selectedFiles();
+  const sel = selectedItems();
   if(!sel.length) return;
 
   let destRoot;
@@ -628,56 +795,64 @@ el.move.addEventListener("click", async () => {
     }
   }catch(_){}
 
-  const keepStructure = state.recursive && sel.some(f => f.relPath.includes("/"));
+  const keepStructure = state.recursive && sel.some(f => !f.isDir && f.relPath.includes("/"));
+  const folders = sel.filter(f => f.isDir).length;
   const ok = await askConfirm({
-    title: "Spostare i file?",
-    text: `${sel.length} file verranno spostati in “${destRoot.name}”${keepStructure ? ", mantenendo le sottocartelle" : ""}. I file vengono copiati nella destinazione e poi rimossi dall'origine.`,
-    files: sel.map(f => f.relPath),
+    title: "Spostare gli elementi?",
+    text: `${sel.length} ${sel.length === 1 ? "elemento verrà spostato" : "elementi verranno spostati"} in “${destRoot.name}”${folders ? " (le cartelle con tutto il contenuto)" : ""}${keepStructure ? ", mantenendo le sottocartelle" : ""}. Gli elementi vengono copiati nella destinazione e poi rimossi dall'origine.`,
+    files: sel.map(f => (f.isDir ? "📁 " : "") + f.relPath),
     okLabel: "Sposta in " + destRoot.name,
     danger: false
   });
   if(!ok) return;
 
   let done = 0, err = 0;
-  const used = new Map(); // per-cartella destinazione → Set nomi usati
+  const used = new Map(); // chiave cartella-destinazione → Set nomi già usati
   const removed = new Set();
 
   for(const f of sel){
     try{
-      const destDir = keepStructure ? await ensureSubdir(destRoot, f.relPath) : destRoot;
-      const dirKey = keepStructure ? f.relPath.split("/").slice(0,-1).join("/") : "";
+      const destDir = (!f.isDir && keepStructure) ? await ensureSubdir(destRoot, f.relPath) : destRoot;
+      const dirKey = (!f.isDir && keepStructure) ? f.relPath.split("/").slice(0,-1).join("/") : "";
       if(!used.has(dirKey)) used.set(dirKey, new Set());
       const name = uniqueName(f.name, used.get(dirKey));
 
-      const blob = await f.handle.getFile();
-      const newHandle = await destDir.getFileHandle(name, { create:true });
-      const w = await newHandle.createWritable();
-      await w.write(blob);
-      await w.close();
-      // rimuovo l'originale solo dopo scrittura riuscita
-      await f.parent.removeEntry(f.name);
+      if(f.isDir){
+        // Cartella: copia ricorsiva + rimozione ricorsiva dell'originale
+        await copyDirInto(f.handle, destDir, name);
+        await f.parent.removeEntry(f.name, { recursive:true });
+      } else {
+        const blob = await f.handle.getFile();
+        const newHandle = await destDir.getFileHandle(name, { create:true });
+        const w = await newHandle.createWritable();
+        await w.write(blob);
+        await w.close();
+        await f.parent.removeEntry(f.name); // rimuovo solo dopo scrittura riuscita
+      }
       removed.add(f.id); done++;
     }catch(e){ console.error("move", f.relPath, e); err++; }
   }
   state.files = state.files.filter(f => !removed.has(f.id));
   refresh();
   if(err) toast(`Spostati ${done}, ${err} non riusciti.`, "err");
-  else toast(`Spostati ${done} file in ${destRoot.name}.`, "ok");
+  else toast(`Spostati ${done} ${done === 1 ? "elemento" : "elementi"} in ${destRoot.name}.`, "ok");
 });
 
-// ---------- Help ----------
-el.help.addEventListener("click", () => {
-  askConfirm({
-    title: "Come funziona FileDeck",
-    text:
-      "1) Apri cartella → scegli da dove partire (Desktop, Download, un progetto…).\n" +
-      "2) Spunta i file che ti interessano (o “seleziona tutti”).\n" +
-      "3) Sposta in… → scegli una cartella di destinazione qualsiasi, oppure Cancella per eliminarli dal disco.\n\n" +
-      "Tutto avviene sul tuo computer: nessun file viene caricato online. Le azioni sono reali e non passano dal Cestino, quindi controlla la selezione prima di confermare.",
-    okLabel: "Ho capito",
-    danger: false
-  });
+// ---------- Disclaimer / Help ----------
+const INTRO_KEY = "filedeck:introSeen";
+function showIntro(){ el.intro.classList.add("on"); el.introOk.focus(); }
+function hideIntro(){ el.intro.classList.remove("on"); }
+el.introOk.addEventListener("click", () => {
+  try{ if(el.introDontShow.checked) localStorage.setItem(INTRO_KEY, "1"); }catch(_){}
+  hideIntro();
 });
+el.intro.addEventListener("keydown", e => { if(e.key === "Escape") hideIntro(); });
+el.help.addEventListener("click", showIntro);
+
+// Mostra il disclaimer all'apertura, salvo che l'utente abbia scelto di nasconderlo
+let introSeen = false;
+try{ introSeen = localStorage.getItem(INTRO_KEY) === "1"; }catch(_){}
+if(!introSeen) showIntro();
 
 el.open.addEventListener("click", openFolder);
 

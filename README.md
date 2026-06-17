@@ -1,18 +1,19 @@
 # FileDeck
 
-> **Sposta e cancella i tuoi file. Sul serio.**
+> **Gestione file diretta: sposta i tuoi file dove vuoi o eliminali dal disco.**
 > PWA offline, privacy-first, 100% client-side. Derivata da [TriageHub](https://github.com/pezzaliapp/TriageHub).
 
-## Cosa fa (davvero)
+## Cosa fa
 
-A differenza della modalità "report" di TriageHub — che si limita a dirti *cosa fare* — FileDeck **agisce sul disco**:
+A differenza della modalità "report" di TriageHub — che si limita a indicare *cosa fare* — FileDeck **agisce direttamente sul disco**:
 
 - 📁 **Apri una cartella** (Desktop, Download, un progetto…) con un permesso esplicito
-- ✅ **Seleziona** i file che vuoi (singoli, filtrati o tutti)
-- 🚚 **Sposta in…** una cartella di destinazione **che scegli tu** (non una cartella fissa)
-- 🗑️ **Cancella** i file selezionati direttamente dal disco
+- 🗂️ **Vista “scrivania”**: vedi sia i file sciolti sia le cartelle presenti, **raggruppati per tipologia** (Cartelle, Immagini, Video, Documenti, Audio, Archivi, Altro)
+- ✅ **Seleziona** ciò che vuoi: un elemento, un intero gruppo (con la casella del titolo) o tutto
+- 🚚 **Sposta in…** una cartella di destinazione **che scegli tu** — anche cartelle intere, con tutto il loro contenuto
+- 🗑️ **Cancella** file e cartelle direttamente dal disco
 - 🔍 Cerca per nome, filtra per tipo, ordina per nome/dimensione/data
-- 📂 Opzione **includi sottocartelle** (scansione ricorsiva, struttura preservata allo spostamento)
+- 📂 Opzione **includi sottocartelle**: scansione ricorsiva che appiattisce e mostra tutti i file (struttura preservata allo spostamento)
 
 Tutto avviene nel tuo browser: **nessun file viene caricato online**, niente account, niente server. Funziona offline dopo il primo caricamento ed è installabile come app.
 
