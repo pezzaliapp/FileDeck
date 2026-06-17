@@ -1,0 +1,21 @@
+{
+  "name": "FileDeck — sposta e cancella file",
+  "short_name": "FileDeck",
+  "description": "PWA offline e privacy-first per spostare i tuoi file in una cartella a tua scelta o cancellarli davvero dal disco. Niente upload, niente account.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#E4E5DD",
+  "theme_color": "#2C4BCF",
+  "lang": "it",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "version": "1.0.0"
+}

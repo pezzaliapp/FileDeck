@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2C4BCF">
+<title>FileDeck — sposta e cancella file sul serio</title>
+<meta name="description" content="PWA offline e privacy-first per spostare i tuoi file in una cartella a tua scelta o cancellarli davvero dal disco. Niente upload, niente account, niente server.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1D22;
+    --ink-soft:#5C616C;
+    --paper:#E4E5DD;
+    --surface:#FCFCFA;
+    --surface-2:#F1F1EC;
+    --line:#D4D6CC;
+    --line-strong:#BFC2B6;
+    --move:#2C4BCF;
+    --move-press:#2139A8;
+    --trash:#C8392E;
+    --trash-press:#A82C23;
+    --select:#E2A33C;
+    --ok:#2F8F5B;
+    --shadow:0 1px 0 rgba(27,29,34,.04), 0 8px 24px -12px rgba(27,29,34,.28);
+    --shadow-tray:0 -2px 0 rgba(27,29,34,.03), 0 -18px 40px -20px rgba(27,29,34,.45);
+    --r:14px;
+    --r-sm:9px;
+    --font-display:"Bricolage Grotesque", "Inter", system-ui, sans-serif;
+    --font-body:"Inter", system-ui, -apple-system, sans-serif;
+    --font-mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:var(--paper);
+    background-image:radial-gradient(circle at 1px 1px, rgba(27,29,34,.045) 1px, transparent 0);
+    background-size:22px 22px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:140px;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:0 18px;}
+
+  /* ---------- Header ---------- */
+  header{padding:34px 0 14px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .mark{
+    width:42px;height:42px;flex:none;border-radius:11px;
+    background:var(--ink);position:relative;overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .mark::before,.mark::after{content:"";position:absolute;border-radius:3px;}
+  .mark::before{left:9px;top:11px;width:24px;height:5px;background:var(--select);transform:rotate(-7deg);}
+  .mark::after{left:8px;top:20px;width:26px;height:13px;background:var(--move);border-radius:3px;}
+  .wordmark{font-family:var(--font-display);font-weight:800;font-size:1.9rem;letter-spacing:-.02em;line-height:1;}
+  .wordmark b{color:var(--move);font-weight:800;}
+  .tagline{margin:10px 0 0;color:var(--ink-soft);font-size:.96rem;max-width:54ch;}
+  .help-btn{
+    margin-left:auto;align-self:flex-start;border:1px solid var(--line-strong);background:var(--surface);
+    color:var(--ink);font-family:var(--font-body);font-weight:600;font-size:.85rem;
+    padding:8px 14px;border-radius:99px;cursor:pointer;
+  }
+  .help-btn:hover{background:var(--surface-2);}
+
+  /* ---------- Source bar ---------- */
+  .panel{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);margin-top:18px;
+  }
+  .source{padding:16px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
+  .btn{
+    font-family:var(--font-body);font-weight:600;font-size:.92rem;cursor:pointer;
+    border-radius:var(--r-sm);padding:11px 16px;border:1px solid transparent;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .06s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--ink);color:#fff;}
+  .btn-primary:hover{background:#2c2f37;}
+  .btn-ghost{background:var(--surface);border-color:var(--line-strong);color:var(--ink);}
+  .btn-ghost:hover{background:var(--surface-2);}
+  .src-info{display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .src-name{font-family:var(--font-mono);font-size:.9rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40ch;}
+  .src-meta{font-size:.78rem;color:var(--ink-soft);}
+  .src-empty{color:var(--ink-soft);font-size:.9rem;}
+  .recursive{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:.86rem;color:var(--ink-soft);user-select:none;}
+  .recursive input{width:17px;height:17px;accent-color:var(--move);}
+
+  /* ---------- Controls ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:1px solid var(--line);padding:12px 16px;}
+  .field{position:relative;flex:1;min-width:180px;}
+  .field input{
+    width:100%;font-family:var(--font-body);font-size:.9rem;color:var(--ink);
+    border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);
+    padding:9px 12px 9px 32px;
+  }
+  .field::before{content:"⌕";position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:1rem;}
+  select{
+    font-family:var(--font-body);font-size:.86rem;color:var(--ink);
+    border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);
+    padding:9px 10px;cursor:pointer;
+  }
+
+  /* ---------- List ---------- */
+  .list-head{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line);font-size:.78rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+  .check{width:19px;height:19px;flex:none;border:1.5px solid var(--line-strong);border-radius:6px;background:var(--surface);cursor:pointer;display:grid;place-items:center;}
+  .check.on{background:var(--move);border-color:var(--move);}
+  .check.on::after{content:"✓";color:#fff;font-size:.8rem;font-weight:700;}
+  .list{list-style:none;margin:0;padding:0;max-height:none;}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--line);cursor:pointer;}
+  .row:hover{background:var(--surface-2);}
+  .row.sel{background:#FBF3E2;box-shadow:inset 3px 0 0 var(--select);}
+  .kind{width:30px;height:30px;flex:none;border-radius:8px;display:grid;place-items:center;font-size:1rem;background:var(--surface-2);}
+  .meta{min-width:0;flex:1;}
+  .fname{font-size:.93rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fpath{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fsize{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-soft);flex:none;}
+
+  /* ---------- Empty / unsupported ---------- */
+  .state{padding:46px 24px;text-align:center;color:var(--ink-soft);}
+  .state h2{font-family:var(--font-display);font-weight:700;color:var(--ink);font-size:1.2rem;margin:0 0 8px;}
+  .state p{margin:0 auto;max-width:46ch;font-size:.92rem;}
+  .badge{display:inline-block;font-family:var(--font-mono);font-size:.72rem;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-bottom:14px;color:var(--ink-soft);}
+
+  /* ---------- Tray (signature) ---------- */
+  .tray{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    transform:translateY(140%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
+  }
+  .tray.up{transform:translateY(0);}
+  .tray-inner{
+    max-width:880px;margin:0 auto;padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+  }
+  .tray-card{
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;
+    box-shadow:var(--shadow-tray);padding:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .stack{position:relative;width:46px;height:46px;flex:none;}
+  .stack i{position:absolute;left:0;right:0;border-radius:7px;border:1.5px solid var(--ink);}
+  .stack i:nth-child(1){top:0;height:18px;background:var(--surface-2);transform:translateX(4px);}
+  .stack i:nth-child(2){top:10px;height:18px;background:#fff;transform:translateX(2px);}
+  .stack i:nth-child(3){top:20px;height:22px;background:var(--select);}
+  .stack b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--ink);z-index:2;}
+  .tray-text{min-width:0;}
+  .tray-count{font-family:var(--font-display);font-weight:700;font-size:1.05rem;line-height:1.15;}
+  .tray-sub{font-family:var(--font-mono);font-size:.78rem;color:var(--ink-soft);}
+  .tray-actions{margin-left:auto;display:flex;gap:10px;}
+  .btn-move{background:var(--move);color:#fff;}
+  .btn-move:hover{background:var(--move-press);}
+  .btn-trash{background:var(--surface);color:var(--trash);border:1px solid var(--trash);}
+  .btn-trash:hover{background:#fbeceb;}
+  .tray-clear{background:none;border:none;color:var(--ink-soft);font-size:.82rem;cursor:pointer;text-decoration:underline;font-family:var(--font-body);}
+
+  /* ---------- Modal ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(27,29,34,.42);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;}
+  .scrim.on{display:flex;}
+  .modal{background:var(--surface);border-radius:16px;max-width:440px;width:100%;box-shadow:var(--shadow);overflow:hidden;}
+  .modal-body{padding:22px 22px 18px;}
+  .modal h3{font-family:var(--font-display);font-weight:700;font-size:1.15rem;margin:0 0 8px;}
+  .modal p{margin:0 0 4px;font-size:.92rem;color:var(--ink-soft);white-space:pre-line;}
+  .modal .files{font-family:var(--font-mono);font-size:.78rem;color:var(--ink);background:var(--surface-2);border-radius:9px;padding:10px 12px;margin-top:12px;max-height:150px;overflow:auto;}
+  .modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--line);background:var(--surface-2);}
+
+  /* ---------- Progress ---------- */
+  .scanbar{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin:0 16px 14px;display:none;}
+  .scanbar.on{display:block;}
+  .scanbar i{display:block;height:100%;width:30%;background:var(--move);border-radius:99px;animation:slide 1.1s infinite ease-in-out;}
+  @keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:160px;transform:translate(-50%,20px);z-index:80;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:99px;font-size:.88rem;font-weight:500;
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+  .toast.ok{background:var(--ok);}
+  .toast.err{background:var(--trash);}
+
+  footer{text-align:center;color:var(--ink-soft);font-size:.78rem;padding:26px 0 8px;}
+  footer a{color:var(--ink-soft);}
+
+  @media (max-width:560px){
+    .wordmark{font-size:1.6rem;}
+    .tray-actions{width:100%;margin-left:0;}
+    .tray-actions .btn{flex:1;justify-content:center;}
+    .source{gap:10px;}
+    .recursive{margin-left:0;width:100%;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;}
+  }
+  :focus-visible{outline:2.5px solid var(--move);outline-offset:2px;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <div class="wordmark">File<b>Deck</b></div>
+      </div>
+      <button class="help-btn" id="helpBtn" type="button">Come funziona</button>
+    </div>
+    <p class="tagline">Apri una cartella, scegli i file, poi <b>spostali dove vuoi</b> o <b>cancellali sul serio</b> dal disco. Tutto nel tuo browser: niente upload, niente account, niente server.</p>
+  </header>
+
+  <main class="panel" id="panel">
+    <div class="source">
+      <button class="btn btn-primary" id="openBtn" type="button">Apri cartella</button>
+      <div class="src-info" id="srcInfo">
+        <span class="src-empty">Nessuna cartella aperta.</span>
+      </div>
+      <label class="recursive"><input type="checkbox" id="recursive"> Includi sottocartelle</label>
+    </div>
+
+    <div class="scanbar" id="scanbar"><i></i></div>
+
+    <div class="controls" id="controls" style="display:none">
+      <div class="field"><input type="text" id="search" placeholder="Cerca per nome…" autocomplete="off"></div>
+      <select id="kindFilter" aria-label="Filtra per tipo">
+        <option value="">Tutti i tipi</option>
+        <option value="image">Immagini</option>
+        <option value="video">Video</option>
+        <option value="audio">Audio</option>
+        <option value="doc">Documenti</option>
+        <option value="archive">Archivi</option>
+        <option value="other">Altro</option>
+      </select>
+      <select id="sortBy" aria-label="Ordina">
+        <option value="name">Nome A→Z</option>
+        <option value="size">Più grandi</option>
+        <option value="date">Più recenti</option>
+      </select>
+    </div>
+
+    <div class="list-head" id="listHead" style="display:none">
+      <span class="check" id="selectAll" role="checkbox" tabindex="0" aria-label="Seleziona tutti i visibili"></span>
+      <span id="visCount" style="flex:1">0 file</span>
+      <span>Dimensione</span>
+    </div>
+
+    <ul class="list" id="list"></ul>
+
+    <div class="state" id="emptyState">
+      <span class="badge" id="supportBadge">in attesa…</span>
+      <h2 id="stTitle">Inizia aprendo una cartella</h2>
+      <p id="stText">FileDeck legge i file direttamente dal disco con il tuo permesso. Clicca “Apri cartella” e scegli da dove partire — ad esempio il Desktop o i Download.</p>
+    </div>
+  </main>
+
+  <footer>
+    Derivata da <a href="https://github.com/pezzaliapp/TriageHub" target="_blank" rel="noopener">TriageHub</a> · 100% client-side · funziona offline · MIT
+  </footer>
+</div>
+
+<!-- Tray -->
+<div class="tray" id="tray" aria-live="polite">
+  <div class="tray-inner">
+    <div class="tray-card">
+      <div class="stack" aria-hidden="true"><i></i><i></i><i></i><b id="stackN">0</b></div>
+      <div class="tray-text">
+        <div class="tray-count" id="trayCount">0 selezionati</div>
+        <div class="tray-sub" id="traySub">0 B</div>
+      </div>
+      <div class="tray-actions">
+        <button class="btn btn-move" id="moveBtn" type="button">Sposta in…</button>
+        <button class="btn btn-trash" id="trashBtn" type="button">Cancella</button>
+      </div>
+      <button class="tray-clear" id="clearBtn" type="button">deseleziona</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="scrim" id="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-body">
+      <h3 id="mTitle">Conferma</h3>
+      <p id="mText"></p>
+      <div class="files" id="mFiles"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="mCancel" type="button">Annulla</button>
+      <button class="btn" id="mOk" type="button">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ====================================================================
+// FileDeck — gestione file reale via File System Access API.
+// Stato in memoria, nessun dato esce dal browser. Le azioni (sposta /
+// cancella) operano direttamente sui file del disco, con conferma.
+// ====================================================================
+
+const FSA = typeof window.showDirectoryPicker === "function";
+
+const state = {
+  rootHandle: null,
+  rootName: "",
+  recursive: false,
+  files: [],          // {id, name, relPath, size, type, mtime, kind, handle, parent, selected}
+  filtered: []
+};
+
+const $ = (id) => document.getElementById(id);
+const el = {
+  open:$("openBtn"), src:$("srcInfo"), recursive:$("recursive"),
+  controls:$("controls"), listHead:$("listHead"), list:$("list"),
+  search:$("search"), kind:$("kindFilter"), sort:$("sortBy"),
+  selectAll:$("selectAll"), visCount:$("visCount"),
+  empty:$("emptyState"), badge:$("supportBadge"), stTitle:$("stTitle"), stText:$("stText"),
+  scanbar:$("scanbar"),
+  tray:$("tray"), stackN:$("stackN"), trayCount:$("trayCount"), traySub:$("traySub"),
+  move:$("moveBtn"), trash:$("trashBtn"), clear:$("clearBtn"),
+  scrim:$("scrim"), mTitle:$("mTitle"), mText:$("mText"), mFiles:$("mFiles"), mOk:$("mOk"), mCancel:$("mCancel"),
+  toast:$("toast"), help:$("helpBtn")
+};
+
+// ---------- Helpers ----------
+function fmtBytes(n){
+  if(n === 0) return "0 B";
+  const u = ["B","KB","MB","GB","TB"];
+  const i = Math.floor(Math.log(n)/Math.log(1024));
+  return (n/Math.pow(1024,i)).toFixed(i?1:0)+" "+u[i];
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+const ICONS = {image:"🖼️",video:"🎬",audio:"🎵",doc:"📄",archive:"🗜️",other:"📦"};
+function kindOf(name, type){
+  const ext = (name.split(".").pop()||"").toLowerCase();
+  if(/^image\//.test(type) || /^(jpe?g|png|gif|webp|heic|heif|bmp|svg|tiff?)$/.test(ext)) return "image";
+  if(/^video\//.test(type) || /^(mp4|mov|m4v|avi|mkv|webm|wmv)$/.test(ext)) return "video";
+  if(/^audio\//.test(type) || /^(mp3|wav|aac|flac|ogg|m4a)$/.test(ext)) return "audio";
+  if(/^(pdf|docx?|pages|txt|rtf|md|odt|xlsx?|csv|pptx?|key|numbers)$/.test(ext)) return "doc";
+  if(/^(zip|rar|7z|tar|gz|tgz|bz2|dmg|iso)$/.test(ext)) return "archive";
+  return "other";
+}
+let toastTimer;
+function toast(msg, kind){
+  el.toast.textContent = msg;
+  el.toast.className = "toast show" + (kind ? " "+kind : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.toast.classList.remove("show"), 3200);
+}
+
+// ---------- Custom confirm modal ----------
+let confirmResolve = null;
+function askConfirm({title, text, files, okLabel, danger}){
+  el.mTitle.textContent = title;
+  el.mText.textContent = text;
+  if(files && files.length){
+    el.mFiles.style.display = "block";
+    el.mFiles.innerHTML = files.slice(0,80).map(f => escapeHtml(f)).join("<br>") +
+      (files.length > 80 ? "<br>… e altri "+(files.length-80) : "");
+  } else {
+    el.mFiles.style.display = "none";
+  }
+  el.mOk.textContent = okLabel || "Conferma";
+  el.mOk.className = "btn " + (danger ? "btn-trash" : "btn-primary");
+  el.scrim.classList.add("on");
+  el.mOk.focus();
+  return new Promise(res => { confirmResolve = res; });
+}
+function closeConfirm(val){
+  el.scrim.classList.remove("on");
+  if(confirmResolve){ confirmResolve(val); confirmResolve = null; }
+}
+el.mOk.addEventListener("click", () => closeConfirm(true));
+el.mCancel.addEventListener("click", () => closeConfirm(false));
+el.scrim.addEventListener("click", e => { if(e.target === el.scrim) closeConfirm(false); });
+document.addEventListener("keydown", e => { if(e.key === "Escape" && el.scrim.classList.contains("on")) closeConfirm(false); });
+
+// ---------- Support gate ----------
+function applySupportState(){
+  if(FSA){
+    el.badge.textContent = "pronto · accesso file attivo";
+  } else {
+    el.badge.textContent = "browser non compatibile";
+    el.stTitle.textContent = "Serve Chrome, Edge o Opera su desktop";
+    el.stText.innerHTML = "Per spostare e cancellare file reali, FileDeck usa la File System Access API, disponibile solo su Chrome, Edge e Opera da computer. Safari, Firefox e i browser di iPhone/Android non la supportano ancora.";
+    el.open.disabled = true;
+    el.open.style.opacity = ".5";
+    el.open.style.cursor = "not-allowed";
+  }
+}
+
+// ---------- Open folder + scan ----------
+async function openFolder(){
+  if(!FSA) return;
+  let handle;
+  try{
+    handle = await window.showDirectoryPicker({ mode:"readwrite", id:"filedeck", startIn:"desktop" });
+  }catch(err){
+    if(err && err.name === "AbortError") return;
+    toast("Impossibile aprire la cartella.", "err");
+    return;
+  }
+  // Permesso readwrite (alcuni browser separano query/request)
+  try{
+    if(handle.requestPermission){
+      const p = await handle.requestPermission({ mode:"readwrite" });
+      if(p !== "granted"){ toast("Permesso di scrittura negato.", "err"); return; }
+    }
+  }catch(_){}
+
+  state.rootHandle = handle;
+  state.rootName = handle.name;
+  state.recursive = el.recursive.checked;
+
+  el.scanbar.classList.add("on");
+  el.empty.style.display = "none";
+  try{
+    const files = [];
+    await scan(handle, "", files, 0);
+    state.files = files;
+  }catch(err){
+    toast("Errore durante la lettura.", "err");
+    console.error(err);
+  }
+  el.scanbar.classList.remove("on");
+  refresh();
+}
+
+const MAX_FILES = 20000;
+const MAX_DEPTH = 6;
+async function scan(dirHandle, prefix, out, depth){
+  for await (const entry of dirHandle.values()){
+    if(out.length >= MAX_FILES) return;
+    if(entry.kind === "file"){
+      // Salto cartelle di sistema irrilevanti
+      if(entry.name === ".DS_Store") continue;
+      let file;
+      try{ file = await entry.getFile(); }catch(_){ continue; }
+      out.push({
+        id: prefix + entry.name + "·" + file.size + "·" + file.lastModified,
+        name: entry.name,
+        relPath: prefix + entry.name,
+        size: file.size,
+        type: file.type || "",
+        mtime: file.lastModified || 0,
+        kind: kindOf(entry.name, file.type || ""),
+        handle: entry,
+        parent: dirHandle,
+        selected: false
+      });
+    } else if(entry.kind === "directory" && state.recursive && depth < MAX_DEPTH){
+      if(entry.name === "_FileDeck_Spostati") continue;
+      await scan(entry, prefix + entry.name + "/", out, depth + 1);
+    }
+  }
+}
+
+// ---------- Render ----------
+function computeFiltered(){
+  const q = el.search.value.trim().toLowerCase();
+  const k = el.kind.value;
+  let arr = state.files.filter(f => {
+    if(k && f.kind !== k) return false;
+    if(q && !f.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const by = el.sort.value;
+  arr.sort((a,b) => {
+    if(by === "size") return b.size - a.size;
+    if(by === "date") return b.mtime - a.mtime;
+    return a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:"base"});
+  });
+  state.filtered = arr;
+}
+
+function renderList(){
+  const arr = state.filtered;
+  el.list.innerHTML = arr.map(f => `
+    <li class="row ${f.selected ? "sel":""}" data-id="${escapeHtml(f.id)}">
+      <span class="check ${f.selected ? "on":""}" aria-hidden="true"></span>
+      <span class="kind">${ICONS[f.kind]}</span>
+      <span class="meta">
+        <span class="fname">${escapeHtml(f.name)}</span>
+        ${f.relPath !== f.name ? `<span class="fpath">${escapeHtml(f.relPath)}</span>` : ""}
+      </span>
+      <span class="fsize">${fmtBytes(f.size)}</span>
+    </li>`).join("");
+  el.visCount.textContent = arr.length + (arr.length === 1 ? " file" : " file");
+  const allSel = arr.length > 0 && arr.every(f => f.selected);
+  el.selectAll.classList.toggle("on", allSel);
+}
+
+function refresh(){
+  const has = state.files.length > 0;
+  el.controls.style.display = has ? "flex" : "none";
+  el.listHead.style.display = has ? "flex" : "none";
+  el.empty.style.display = has ? "none" : "block";
+
+  if(state.rootHandle){
+    const total = state.files.reduce((s,f)=>s+f.size,0);
+    el.src.innerHTML = `<span class="src-name">📁 ${escapeHtml(state.rootName)}</span>
+      <span class="src-meta">${state.files.length} file · ${fmtBytes(total)}${state.recursive ? " · incl. sottocartelle":""}</span>`;
+  }
+  if(has){ computeFiltered(); renderList(); }
+  updateTray();
+}
+
+// ---------- Selection ----------
+function selectedFiles(){ return state.files.filter(f => f.selected); }
+function updateTray(){
+  const sel = selectedFiles();
+  if(sel.length === 0){ el.tray.classList.remove("up"); return; }
+  const bytes = sel.reduce((s,f)=>s+f.size,0);
+  el.stackN.textContent = sel.length > 99 ? "99+" : sel.length;
+  el.trayCount.textContent = sel.length + (sel.length === 1 ? " file selezionato" : " file selezionati");
+  el.traySub.textContent = fmtBytes(bytes);
+  el.tray.classList.add("up");
+}
+
+el.list.addEventListener("click", e => {
+  const row = e.target.closest(".row");
+  if(!row) return;
+  const f = state.files.find(x => x.id === row.dataset.id);
+  if(!f) return;
+  f.selected = !f.selected;
+  row.classList.toggle("sel", f.selected);
+  row.querySelector(".check").classList.toggle("on", f.selected);
+  const allSel = state.filtered.length > 0 && state.filtered.every(x => x.selected);
+  el.selectAll.classList.toggle("on", allSel);
+  updateTray();
+});
+
+function toggleSelectAll(){
+  const arr = state.filtered;
+  const allSel = arr.length > 0 && arr.every(f => f.selected);
+  arr.forEach(f => f.selected = !allSel);
+  renderList();
+  updateTray();
+}
+el.selectAll.addEventListener("click", toggleSelectAll);
+el.selectAll.addEventListener("keydown", e => { if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggleSelectAll(); } });
+
+el.clear.addEventListener("click", () => {
+  state.files.forEach(f => f.selected = false);
+  renderList(); updateTray();
+});
+
+// ---------- Filters ----------
+el.search.addEventListener("input", () => { computeFiltered(); renderList(); });
+el.kind.addEventListener("change", () => { computeFiltered(); renderList(); });
+el.sort.addEventListener("change", () => { computeFiltered(); renderList(); });
+el.recursive.addEventListener("change", () => {
+  if(state.rootHandle){ toast("Riapri la cartella per applicare la modifica."); }
+});
+
+// ---------- Delete ----------
+el.trash.addEventListener("click", async () => {
+  const sel = selectedFiles();
+  if(!sel.length) return;
+  const bytes = sel.reduce((s,f)=>s+f.size,0);
+  const ok = await askConfirm({
+    title: "Cancellare definitivamente?",
+    text: `Stai per eliminare ${sel.length} file (${fmtBytes(bytes)}) dal disco. L'operazione non passa dal Cestino e non è annullabile.`,
+    files: sel.map(f => f.relPath),
+    okLabel: "Cancella " + sel.length + " file",
+    danger: true
+  });
+  if(!ok) return;
+
+  let done = 0, err = 0;
+  const removed = new Set();
+  for(const f of sel){
+    try{
+      await f.parent.removeEntry(f.name);
+      removed.add(f.id); done++;
+    }catch(e){ console.error("delete", f.relPath, e); err++; }
+  }
+  state.files = state.files.filter(f => !removed.has(f.id));
+  refresh();
+  if(err) toast(`Cancellati ${done}, ${err} non riusciti.`, "err");
+  else toast(`Cancellati ${done} file.`, "ok");
+});
+
+// ---------- Move ----------
+function uniqueName(name, used){
+  if(!used.has(name)){ used.add(name); return name; }
+  const dot = name.lastIndexOf(".");
+  const base = dot > 0 ? name.slice(0,dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  let i = 1, cand;
+  do { cand = `${base} (${i})${ext}`; i++; } while(used.has(cand));
+  used.add(cand);
+  return cand;
+}
+async function ensureSubdir(root, relPath){
+  const parts = relPath.split("/"); parts.pop(); // togli il nome file
+  let dir = root;
+  for(const p of parts){ if(p) dir = await dir.getDirectoryHandle(p, { create:true }); }
+  return dir;
+}
+
+el.move.addEventListener("click", async () => {
+  const sel = selectedFiles();
+  if(!sel.length) return;
+
+  let destRoot;
+  try{
+    destRoot = await window.showDirectoryPicker({ mode:"readwrite", id:"filedeck-dest" });
+  }catch(err){
+    if(err && err.name === "AbortError") return;
+    toast("Impossibile aprire la cartella di destinazione.", "err");
+    return;
+  }
+  try{
+    if(destRoot.requestPermission){
+      const p = await destRoot.requestPermission({ mode:"readwrite" });
+      if(p !== "granted"){ toast("Permesso negato sulla destinazione.", "err"); return; }
+    }
+  }catch(_){}
+
+  const keepStructure = state.recursive && sel.some(f => f.relPath.includes("/"));
+  const ok = await askConfirm({
+    title: "Spostare i file?",
+    text: `${sel.length} file verranno spostati in “${destRoot.name}”${keepStructure ? ", mantenendo le sottocartelle" : ""}. I file vengono copiati nella destinazione e poi rimossi dall'origine.`,
+    files: sel.map(f => f.relPath),
+    okLabel: "Sposta in " + destRoot.name,
+    danger: false
+  });
+  if(!ok) return;
+
+  let done = 0, err = 0;
+  const used = new Map(); // per-cartella destinazione → Set nomi usati
+  const removed = new Set();
+
+  for(const f of sel){
+    try{
+      const destDir = keepStructure ? await ensureSubdir(destRoot, f.relPath) : destRoot;
+      const dirKey = keepStructure ? f.relPath.split("/").slice(0,-1).join("/") : "";
+      if(!used.has(dirKey)) used.set(dirKey, new Set());
+      const name = uniqueName(f.name, used.get(dirKey));
+
+      const blob = await f.handle.getFile();
+      const newHandle = await destDir.getFileHandle(name, { create:true });
+      const w = await newHandle.createWritable();
+      await w.write(blob);
+      await w.close();
+      // rimuovo l'originale solo dopo scrittura riuscita
+      await f.parent.removeEntry(f.name);
+      removed.add(f.id); done++;
+    }catch(e){ console.error("move", f.relPath, e); err++; }
+  }
+  state.files = state.files.filter(f => !removed.has(f.id));
+  refresh();
+  if(err) toast(`Spostati ${done}, ${err} non riusciti.`, "err");
+  else toast(`Spostati ${done} file in ${destRoot.name}.`, "ok");
+});
+
+// ---------- Help ----------
+el.help.addEventListener("click", () => {
+  askConfirm({
+    title: "Come funziona FileDeck",
+    text:
+      "1) Apri cartella → scegli da dove partire (Desktop, Download, un progetto…).\n" +
+      "2) Spunta i file che ti interessano (o “seleziona tutti”).\n" +
+      "3) Sposta in… → scegli una cartella di destinazione qualsiasi, oppure Cancella per eliminarli dal disco.\n\n" +
+      "Tutto avviene sul tuo computer: nessun file viene caricato online. Le azioni sono reali e non passano dal Cestino, quindi controlla la selezione prima di confermare.",
+    okLabel: "Ho capito",
+    danger: false
+  });
+});
+
+el.open.addEventListener("click", openFolder);
+
+applySupportState();
+
+// ---------- Service worker ----------
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
