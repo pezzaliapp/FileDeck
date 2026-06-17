@@ -8,12 +8,12 @@
 A differenza della modalità "report" di TriageHub — che si limita a indicare *cosa fare* — FileDeck **agisce direttamente sul disco**:
 
 - 📁 **Apri una cartella** (Desktop, Download, un progetto…) con un permesso esplicito
-- 🗂️ **Vista “scrivania”**: vedi sia i file sciolti sia le cartelle presenti, **raggruppati per tipologia** (Cartelle, Immagini, Video, Documenti, Audio, Archivi, Altro)
-- ✅ **Seleziona** ciò che vuoi: un elemento, un intero gruppo (con la casella del titolo) o tutto
+- 🗂️ **Vista completa**: aprendo una cartella (es. la Scrivania) vedi **tutti i file** che contiene — sia quelli sciolti sia quelli dentro le sottocartelle — **più** le cartelle di primo livello come blocchi a sé, tutto **raggruppato per tipologia** (Cartelle, Immagini, Video, Documenti, Audio, Archivi, Altro)
+- ✅ **Seleziona** ciò che vuoi: un elemento, un intero gruppo (con la casella del titolo) o tutto. Se selezioni una cartella, i file al suo interno vengono esclusi (si spostano/cancellano già con essa)
 - 🚚 **Sposta in…** una cartella di destinazione **che scegli tu** — anche cartelle intere, con tutto il loro contenuto
 - 🗑️ **Cancella** file e cartelle direttamente dal disco
 - 🔍 Cerca per nome, filtra per tipo, ordina per nome/dimensione/data
-- 📂 Opzione **includi sottocartelle**: scansione ricorsiva che appiattisce e mostra tutti i file (struttura preservata allo spostamento)
+- 📂 Casella **“Includi i file dentro le cartelle”** (attiva di default): se la togli, vedi solo i file sciolti e le cartelle, senza il contenuto di queste
 
 Tutto avviene nel tuo browser: **nessun file viene caricato online**, niente account, niente server. Funziona offline dopo il primo caricamento ed è installabile come app.
 
