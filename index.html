@@ -194,6 +194,22 @@
 
   footer{text-align:center;color:var(--ink-soft);font-size:.78rem;padding:26px 0 8px;}
   footer a{color:var(--ink-soft);}
+  .debug-link{background:none;border:none;color:var(--ink-soft);font-size:.78rem;cursor:pointer;text-decoration:underline;font-family:var(--font-body);padding:0;}
+
+  /* ---------- Debug panel ---------- */
+  .debug{
+    position:fixed;right:14px;bottom:14px;z-index:70;width:min(380px,calc(100vw - 28px));
+    background:var(--ink);color:#EDEFF3;border-radius:12px;box-shadow:var(--shadow);
+    font-family:var(--font-mono);font-size:.76rem;overflow:hidden;
+  }
+  .debug[hidden]{display:none;}
+  .debug-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#000;font-weight:600;}
+  .debug-head span{flex:1;}
+  .debug-head button{background:none;border:none;color:#9aa0ac;font-size:1rem;cursor:pointer;line-height:1;}
+  .debug-body{padding:11px 12px;max-height:42vh;overflow:auto;white-space:pre-wrap;line-height:1.5;}
+  .debug-body b{color:var(--select);}
+  .debug-body .err{color:#ff9a8f;}
+  .debug-body .ok{color:#7fd6a0;}
 
   @media (max-width:560px){
     .wordmark{font-size:1.6rem;}
@@ -327,6 +343,7 @@
 
   <footer>
     Derivata da <a href="https://github.com/pezzaliapp/TriageHub" target="_blank" rel="noopener">TriageHub</a> · 100% client-side · funziona offline · MIT
+    · <button type="button" class="debug-link" id="debugToggle">Debug</button>
   </footer>
 </div>
 
@@ -365,6 +382,16 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Pannello Debug (attivabile) -->
+<div class="debug" id="debug" hidden>
+  <div class="debug-head">
+    <span>Debug scansione</span>
+    <button type="button" id="debugClose" aria-label="Chiudi debug">✕</button>
+  </div>
+  <div class="debug-body" id="debugBody">Apri una cartella per vedere i dettagli della scansione.</div>
+</div>
+
+<script src="scan.js"></script>
 <script>
 "use strict";
 
@@ -396,7 +423,8 @@ const el = {
   move:$("moveBtn"), trash:$("trashBtn"), clear:$("clearBtn"),
   scrim:$("scrim"), mTitle:$("mTitle"), mText:$("mText"), mFiles:$("mFiles"), mOk:$("mOk"), mCancel:$("mCancel"),
   toast:$("toast"), help:$("helpBtn"),
-  intro:$("intro"), introOk:$("introOk"), introDontShow:$("introDontShow")
+  intro:$("intro"), introOk:$("introOk"), introDontShow:$("introDontShow"),
+  debug:$("debug"), debugBody:$("debugBody"), debugToggle:$("debugToggle"), debugClose:$("debugClose")
 };
 
 // ---------- Helpers ----------
@@ -410,15 +438,6 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 const ICONS = {folder:"📁",image:"🖼️",video:"🎬",audio:"🎵",doc:"📄",archive:"🗜️",other:"📦"};
-function kindOf(name, type){
-  const ext = (name.split(".").pop()||"").toLowerCase();
-  if(/^image\//.test(type) || /^(jpe?g|png|gif|webp|heic|heif|bmp|svg|tiff?)$/.test(ext)) return "image";
-  if(/^video\//.test(type) || /^(mp4|mov|m4v|avi|mkv|webm|wmv)$/.test(ext)) return "video";
-  if(/^audio\//.test(type) || /^(mp3|wav|aac|flac|ogg|m4a)$/.test(ext)) return "audio";
-  if(/^(pdf|docx?|pages|txt|rtf|md|odt|xlsx?|csv|pptx?|key|numbers)$/.test(ext)) return "doc";
-  if(/^(zip|rar|7z|tar|gz|tgz|bz2|dmg|iso)$/.test(ext)) return "archive";
-  return "other";
-}
 let toastTimer;
 function toast(msg, kind){
   el.toast.textContent = msg;
@@ -520,92 +539,50 @@ async function ensureWrite(handle){
 }
 
 // Esegue (o riesegue) la scansione della cartella radice corrente.
+// La logica vera è in scan.js (FileDeckScan), così è testabile in Node.
 async function runScan(){
   if(!state.rootHandle) return;
   state.deep = el.recursive.checked;
-  state.scanError = false;
   el.scanbar.classList.add("on");
-  const out = [];
-  await scan(state.rootHandle, "", out, 0);
-  state.files = out;            // assegno SEMPRE ciò che ho raccolto, anche se parziale
+
+  const { items, stats } = await FileDeckScan.scanDirectory(state.rootHandle, { deep: state.deep });
+
+  state.files = items;          // assegno SEMPRE ciò che ho raccolto, anche se parziale
+  state.stats = stats;
+  state.scanError = stats.errors.length > 0;
+
   el.scanbar.classList.remove("on");
+
+  // Diagnostica: console + pannello debug. Serve per vedere ESATTAMENTE cosa
+  // succede su https (file iCloud non leggibili, cartelle bloccate, ecc.).
+  console.log("[FileDeck] scansione di “" + state.rootName + "”:", stats);
+  if(stats.errors.length) console.table(stats.errors);
+  renderDebug();
+
   refresh();
 }
 
-const MAX_FILES = 50000;
-const MAX_DEPTH = 10;
-const SKIP_FILES = new Set([".DS_Store", "Thumbs.db", "desktop.ini", ".localized"]);
-
-// Scansione resiliente: un singolo file o una sottocartella illeggibile NON
-// interrompe tutto. Ogni livello e ogni voce sono protetti da try/catch, così
-// i file già trovati restano sempre disponibili.
-async function scan(dirHandle, prefix, out, depth){
-  let iterator;
-  try{ iterator = dirHandle.values(); }
-  catch(e){ console.warn("dir non leggibile:", prefix, e); state.scanError = true; return; }
-
-  try{
-    for await (const entry of iterator){
-      if(out.length >= MAX_FILES) return;
-      try{
-        if(entry.kind === "file"){
-          if(SKIP_FILES.has(entry.name)) continue;
-          // Provo a leggere dimensione/tipo/data. Se fallisce (tipico dei file
-          // iCloud "non scaricati" o di rete), NON scarto il file: lo elenco
-          // comunque ricavando il tipo dal nome. Così i file singoli si vedono.
-          let size = 0, type = "", mtime = 0, unread = false;
-          try{
-            const file = await entry.getFile();
-            size = file.size; type = file.type || ""; mtime = file.lastModified || 0;
-          }catch(_){
-            unread = true;
-          }
-          out.push({
-            id: prefix + entry.name + "·" + size + "·" + mtime,
-            name: entry.name,
-            relPath: prefix + entry.name,
-            size: size,
-            type: type,
-            mtime: mtime,
-            kind: kindOf(entry.name, type),
-            isDir: false,
-            unread: unread,
-            handle: entry,
-            parent: dirHandle,
-            selected: false
-          });
-        } else if(entry.kind === "directory"){
-          if(entry.name === "_FileDeck_Spostati") continue;
-          // Le cartelle di PRIMO livello compaiono come blocco spostabile/cancellabile
-          if(depth === 0){
-            let childCount = 0;
-            try{ for await (const _ of entry.values()){ childCount++; if(childCount >= 999) break; } }catch(_){}
-            out.push({
-              id: prefix + entry.name + "·dir",
-              name: entry.name,
-              relPath: prefix + entry.name,
-              size: 0, type: "", mtime: 0,
-              kind: "folder", isDir: true, childCount,
-              handle: entry, parent: dirHandle, selected: false
-            });
-          }
-          // Se richiesto, scendo dentro per elencare ANCHE i file contenuti.
-          // La ricorsione è già protetta al suo interno: se una sottocartella
-          // non è leggibile, viene saltata senza fermare il resto.
-          if(state.deep && depth < MAX_DEPTH){
-            await scan(entry, prefix + entry.name + "/", out, depth + 1);
-          }
-        }
-      }catch(e){
-        console.warn("voce saltata:", entry && entry.name, e);
-        // continuo con la voce successiva
-      }
-    }
-  }catch(e){
-    console.warn("iterazione interrotta in:", prefix, e);
-    state.scanError = true;
-    // mantengo comunque tutto ciò che ho raccolto finora
+// Mostra le statistiche di scansione nel pannello debug.
+function renderDebug(){
+  if(el.debug.hidden) return;
+  const s = state.stats;
+  if(!s){ el.debugBody.textContent = "Apri una cartella per vedere i dettagli della scansione."; return; }
+  let html =
+    "Cartella: <b>" + escapeHtml(state.rootName || "—") + "</b>\n" +
+    "Modalità: " + (state.deep ? "ricorsiva (incl. sottocartelle)" : "solo primo livello") + "\n\n" +
+    "Voci iterate: <b>" + s.entries + "</b>\n" +
+    "File letti: <span class=\"ok\">" + s.filesRead + "</span>\n" +
+    "File non leggibili (in cloud): <b>" + s.filesCloud + "</b>\n" +
+    "Cartelle trovate: <b>" + s.dirs + "</b>\n" +
+    "Errori catturati: " + (s.errors.length ? "<span class=\"err\">" + s.errors.length + "</span>" : "0") + "\n";
+  if(s.errors.length){
+    html += "\n— Errori —\n";
+    html += s.errors.slice(0, 40).map(e =>
+      "<span class=\"err\">• " + escapeHtml(e.entry) + " [" + e.phase + "]: " + escapeHtml(e.error) + "</span>"
+    ).join("\n");
+    if(s.errors.length > 40) html += "\n… e altri " + (s.errors.length - 40);
   }
+  el.debugBody.innerHTML = html;
 }
 
 // ---------- Render ----------
@@ -813,7 +790,9 @@ el.trash.addEventListener("click", async () => {
   const removed = new Set();
   for(const f of sel){
     try{
-      await f.parent.removeEntry(f.name, f.isDir ? { recursive:true } : undefined);
+      // Uso entryName (nome reale su disco): per i segnaposto iCloud è
+      // ".Nome.ext.icloud", diverso dal nome mostrato.
+      await f.parent.removeEntry(f.entryName, f.isDir ? { recursive:true } : undefined);
       removed.add(f.id); done++;
     }catch(e){ console.error("delete", f.relPath, e); err++; }
   }
@@ -910,7 +889,7 @@ el.move.addEventListener("click", async () => {
         const w = await newHandle.createWritable();
         await w.write(blob);
         await w.close();
-        await f.parent.removeEntry(f.name); // rimuovo solo dopo scrittura riuscita
+        await f.parent.removeEntry(f.entryName); // rimuovo solo dopo scrittura riuscita
       }
       removed.add(f.id); done++;
     }catch(e){ console.error("move", f.relPath, e); err++; }
@@ -938,6 +917,17 @@ try{ introSeen = localStorage.getItem(INTRO_KEY) === "1"; }catch(_){}
 if(!introSeen) showIntro();
 
 el.open.addEventListener("click", openFolder);
+
+// ---------- Debug panel ----------
+const DEBUG_KEY = "filedeck:debug";
+function setDebug(on){
+  el.debug.hidden = !on;
+  try{ on ? localStorage.setItem(DEBUG_KEY, "1") : localStorage.removeItem(DEBUG_KEY); }catch(_){}
+  if(on) renderDebug();
+}
+el.debugToggle.addEventListener("click", () => setDebug(el.debug.hidden));
+el.debugClose.addEventListener("click", () => setDebug(false));
+try{ if(localStorage.getItem(DEBUG_KEY) === "1") setDebug(true); }catch(_){}
 
 applySupportState();
 
