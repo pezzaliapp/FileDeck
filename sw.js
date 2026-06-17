@@ -2,7 +2,7 @@
 // Cache-first per gli asset statici, network-first per index.html (così gli
 // aggiornamenti arrivano appena sei online).
 
-const CACHE = "filedeck-v1.2.0";
+const CACHE = "filedeck-v1.3.0";
 const CORE = [
   "./",
   "./index.html",
@@ -45,8 +45,11 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // index.html / navigazioni: network-first
-  if (request.mode === "navigate" || url.pathname.endsWith("index.html") || url.pathname.endsWith("/")) {
+  // index.html, scan.js e navigazioni: network-first, così gli aggiornamenti
+  // di logica/render arrivano sempre appena sei online (niente file "appesi"
+  // a una versione vecchia in cache).
+  if (request.mode === "navigate" || url.pathname.endsWith("index.html") ||
+      url.pathname.endsWith("scan.js") || url.pathname.endsWith("/")) {
     e.respondWith(
       fetch(request).then(r => {
         if (r && r.status === 200) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(request, copy)); }

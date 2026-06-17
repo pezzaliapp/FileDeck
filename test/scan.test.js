@@ -181,6 +181,43 @@ async function test(label, fn) {
     assert.ok(flatFiles.includes("photo.jpg"), "i file di primo livello restano");
   });
 
+  console.log("\nRegressione bug \"si vedono solo le cartelle\":");
+
+  await test("una directory che yield-a SIA file SIA cartelle restituisce gli item file", async () => {
+    // Riproduce il caso reale: stesso livello con file handle e directory handle.
+    const mixed = dirH("Root", [
+      fileH("a.txt", { size: 1, type: "text/plain", lastModified: 1 }),
+      dirH("Cartella", []),
+      fileH("b.png", { size: 2, type: "image/png", lastModified: 2 }),
+      dirH("Altra", [])
+    ]);
+    const { items } = await scanDirectory(mixed, { deep: true });
+    const f = items.filter(i => !i.isDir).map(i => i.name).sort();
+    const d = items.filter(i => i.isDir).map(i => i.name).sort();
+    assert.deepStrictEqual(f, ["a.txt", "b.png"], "i FILE devono essere presenti, non solo le cartelle");
+    assert.deepStrictEqual(d, ["Altra", "Cartella"]);
+  });
+
+  await test("cartella di SOLI file normali (nessun iCloud): tutti elencati e leggibili", async () => {
+    const normal = dirH("Documenti", [
+      fileH("relazione.pdf", { size: 10, type: "application/pdf", lastModified: 1 }),
+      fileH("foto.JPG",      { size: 20, type: "image/jpeg",      lastModified: 2 }),
+      fileH("note.txt",      { size: 30, type: "text/plain",      lastModified: 3 }),
+      fileH("archivio.zip",  { size: 40, type: "application/zip", lastModified: 4 })
+    ]);
+    const { items, stats } = await scanDirectory(normal, { deep: true });
+    const files = items.filter(i => !i.isDir);
+    assert.strictEqual(files.length, 4, "tutti i 4 file normali elencati");
+    assert.strictEqual(stats.filesCloud, 0, "nessun file marcato in cloud");
+    assert.strictEqual(stats.filesRead, 4);
+    // i nomi normali NON devono essere alterati da realNameFromICloud
+    assert.deepStrictEqual(files.map(f => f.name).sort(),
+      ["archivio.zip", "foto.JPG", "note.txt", "relazione.pdf"]);
+    // ogni file ricade in un gruppo renderizzabile
+    const KNOWN = new Set(["image", "video", "audio", "doc", "archive", "other"]);
+    assert.ok(files.every(f => KNOWN.has(f.kind)), "ogni file ha un kind valido");
+  });
+
   console.log("\n" + (failed ? "✗" : "✓") + " " + passed + " test superati, " + failed + " falliti\n");
   process.exit(failed ? 1 : 0);
 })();

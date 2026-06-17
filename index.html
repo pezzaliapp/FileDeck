@@ -343,6 +343,7 @@
 
   <footer>
     Derivata da <a href="https://github.com/pezzaliapp/TriageHub" target="_blank" rel="noopener">TriageHub</a> · 100% client-side · funziona offline · MIT
+    · <span id="ver">v—</span>
     · <button type="button" class="debug-link" id="debugToggle">Debug</button>
   </footer>
 </div>
@@ -401,6 +402,7 @@
 // cancella) operano direttamente sui file del disco, con conferma.
 // ====================================================================
 
+const APP_VERSION = "1.3.0";
 const FSA = typeof window.showDirectoryPicker === "function";
 
 const state = {
@@ -511,7 +513,20 @@ async function openFolder(){
   state.rootName = handle.name;
   state.scanError = false;
   el.empty.style.display = "none";
+
+  // DIAGNOSTICA GREZZA: itero rootHandle.values() PRIMA di qualsiasi
+  // classificazione, così so esattamente cosa restituisce l'API.
+  state.rawProbe = await rawProbe(handle);
+  console.log("[FileDeck] probe grezzo:", state.rawProbe);
+
   await runScan();
+
+  // Auto-apro il pannello debug se c'è un'anomalia (es. l'API restituisce
+  // file ma non finiscono nella lista), così l'utente vede subito il dump.
+  const fileItems = state.files.filter(f => !f.isDir).length;
+  if((state.rawProbe.files > 0 && fileItems === 0) || (state.files.length === 0 && state.rawProbe.total > 0)){
+    setDebug(true);
+  }
 
   if(state.files.length === 0){
     el.empty.style.display = "block";
@@ -538,6 +553,28 @@ async function ensureWrite(handle){
   }catch(_){ return true; }
 }
 
+// Probe GREZZO del primo livello: itera handle.values() senza alcuna
+// classificazione/filtro e conta file vs directory così come arrivano dall'API.
+// È lo strumento per capire in quale anello si perdono i file:
+//   (a) l'API non restituisce voci file        -> probe.files === 0
+//   (b) scan.js non le include negli items      -> probe.files > 0 ma items file === 0
+//   (c) il render le scarta                      -> items file > 0 ma lista vuota
+async function rawProbe(handle){
+  const probe = { total:0, files:0, dirs:0, other:0, sample:[], error:null };
+  try{
+    for await (const entry of handle.values()){
+      probe.total++;
+      if(entry.kind === "file") probe.files++;
+      else if(entry.kind === "directory") probe.dirs++;
+      else probe.other++;
+      if(probe.sample.length < 30) probe.sample.push(entry.name + "  [" + entry.kind + "]");
+    }
+  }catch(e){
+    probe.error = (e && (e.name || e.message)) || String(e);
+  }
+  return probe;
+}
+
 // Esegue (o riesegue) la scansione della cartella radice corrente.
 // La logica vera è in scan.js (FileDeckScan), così è testabile in Node.
 async function runScan(){
@@ -562,26 +599,55 @@ async function runScan(){
   refresh();
 }
 
-// Mostra le statistiche di scansione nel pannello debug.
+// Mostra la diagnostica completa nel pannello debug: prima il PROBE GREZZO
+// (cosa restituisce l'API), poi cosa ha prodotto la scansione e cosa è
+// finito nella lista. Confrontando i tre numeri si vede dove si perdono i file.
 function renderDebug(){
   if(el.debug.hidden) return;
-  const s = state.stats;
-  if(!s){ el.debugBody.textContent = "Apri una cartella per vedere i dettagli della scansione."; return; }
-  let html =
-    "Cartella: <b>" + escapeHtml(state.rootName || "—") + "</b>\n" +
-    "Modalità: " + (state.deep ? "ricorsiva (incl. sottocartelle)" : "solo primo livello") + "\n\n" +
-    "Voci iterate: <b>" + s.entries + "</b>\n" +
-    "File letti: <span class=\"ok\">" + s.filesRead + "</span>\n" +
-    "File non leggibili (in cloud): <b>" + s.filesCloud + "</b>\n" +
-    "Cartelle trovate: <b>" + s.dirs + "</b>\n" +
-    "Errori catturati: " + (s.errors.length ? "<span class=\"err\">" + s.errors.length + "</span>" : "0") + "\n";
-  if(s.errors.length){
-    html += "\n— Errori —\n";
-    html += s.errors.slice(0, 40).map(e =>
-      "<span class=\"err\">• " + escapeHtml(e.entry) + " [" + e.phase + "]: " + escapeHtml(e.error) + "</span>"
-    ).join("\n");
-    if(s.errors.length > 40) html += "\n… e altri " + (s.errors.length - 40);
+  const p = state.rawProbe, s = state.stats;
+  if(!p && !s){ el.debugBody.textContent = "Apri una cartella per vedere i dettagli della scansione."; return; }
+
+  let html = "App v" + APP_VERSION + "\n";
+  html += "Cartella: <b>" + escapeHtml(state.rootName || "—") + "</b>\n";
+  html += "Modalità: " + (state.deep ? "ricorsiva (incl. sottocartelle)" : "solo primo livello") + "\n";
+
+  // (A) Probe grezzo: voci dell'API senza alcun filtro
+  if(p){
+    html += "\n— 1. API grezza (handle.values, primo livello) —\n";
+    html += "Voci totali: <b>" + p.total + "</b>\n";
+    html += "di cui FILE: " + (p.files ? "<span class=\"ok\">" + p.files + "</span>" : "<span class=\"err\">0</span>") + "\n";
+    html += "di cui CARTELLE: <b>" + p.dirs + "</b>\n";
+    if(p.other) html += "di cui altro: " + p.other + "\n";
+    if(p.error) html += "<span class=\"err\">Errore iterando: " + escapeHtml(p.error) + "</span>\n";
+    html += "Primi nomi (nome [kind]):\n";
+    html += p.sample.length
+      ? p.sample.map(x => "  " + escapeHtml(x)).join("\n")
+      : "  (nessuna voce)";
+    html += "\n";
   }
+
+  // (B) Risultato della scansione
+  if(s){
+    const fileItems = state.files.filter(f => !f.isDir).length;
+    const folderItems = state.files.filter(f => f.isDir).length;
+    html += "\n— 2. Dopo scanDirectory —\n";
+    html += "Voci iterate (tutti i livelli): <b>" + s.entries + "</b>\n";
+    html += "File letti: <span class=\"ok\">" + s.filesRead + "</span>\n";
+    html += "File in cloud: <b>" + s.filesCloud + "</b>\n";
+    html += "Cartelle trovate: <b>" + s.dirs + "</b>\n";
+    html += "Errori catturati: " + (s.errors.length ? "<span class=\"err\">" + s.errors.length + "</span>" : "0") + "\n";
+    html += "\n— 3. Items nello stato (ciò che si renderizza) —\n";
+    html += "File: " + (fileItems ? "<span class=\"ok\">" + fileItems + "</span>" : "<span class=\"err\">0</span>") + "\n";
+    html += "Cartelle: <b>" + folderItems + "</b>\n";
+    if(s.errors.length){
+      html += "\n— Errori —\n";
+      html += s.errors.slice(0, 40).map(e =>
+        "<span class=\"err\">• " + escapeHtml(e.entry) + " [" + e.phase + "]: " + escapeHtml(e.error) + "</span>"
+      ).join("\n");
+      if(s.errors.length > 40) html += "\n… e altri " + (s.errors.length - 40);
+    }
+  }
+
   el.debugBody.innerHTML = html;
 }
 
@@ -634,10 +700,18 @@ function rowHtml(e){
 function renderList(){
   const arr = state.filtered;
   const byKey = {};
-  for(const e of arr){ (byKey[e.kind] = byKey[e.kind] || []).push(e); }
+  for(const e of arr){ const k = e.kind || "other"; (byKey[k] = byKey[k] || []).push(e); }
+
+  // Costruisco la lista dei gruppi da mostrare: prima quelli noti, poi
+  // eventuali chiavi inattese (così NESSUN file viene mai scartato in render).
+  const groups = GROUPS.slice();
+  const knownKeys = new Set(GROUPS.map(g => g.key));
+  for(const k of Object.keys(byKey)){
+    if(!knownKeys.has(k)) groups.push({ key:k, label:k, icon:"📦" });
+  }
 
   let html = "";
-  for(const g of GROUPS){
+  for(const g of groups){
     const items = byKey[g.key];
     if(!items || !items.length) continue;
     const groupBytes = items.reduce((s,e) => s + (e.size||0), 0);
@@ -928,6 +1002,9 @@ function setDebug(on){
 el.debugToggle.addEventListener("click", () => setDebug(el.debug.hidden));
 el.debugClose.addEventListener("click", () => setDebug(false));
 try{ if(localStorage.getItem(DEBUG_KEY) === "1") setDebug(true); }catch(_){}
+
+// Versione visibile nel footer: l'utente conferma quale build sta girando.
+$("ver").textContent = "v" + APP_VERSION;
 
 applySupportState();
 
