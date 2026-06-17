@@ -472,31 +472,38 @@ async function openFolder(){
   if(!FSA) return;
   let handle;
   try{
-    handle = await window.showDirectoryPicker({ id:"filedeck", startIn:"desktop", mode:"readwrite" });
+    // Apro in LETTURA (default). Aprire in scrittura farebbe bloccare a Chrome
+    // cartelle come Scrivania/Documenti/Download. La scrittura la chiederò solo
+    // al momento di spostare o cancellare.
+    handle = await window.showDirectoryPicker({ id:"filedeck", startIn:"desktop" });
   }catch(err){
     if(err && err.name === "AbortError") return;
-    console.error(err);
+    console.error("picker", err);
     if(err && err.name === "SecurityError"){
-      toast("Il browser ha bloccato l'accesso in questo contesto. Apri FileDeck in una scheda intera su https.", "err");
+      toast("Il browser ha bloccato l'accesso qui. Apri FileDeck in una scheda intera su https (non in un'anteprima).", "err");
     } else {
       toast("Impossibile aprire la cartella. Riprova o scegline un'altra.", "err");
     }
     return;
   }
 
-  // NON blocco sui permessi: la lettura di solito è consentita anche dove la
-  // scrittura è limitata. Il permesso di scrittura lo chiedo al momento di
-  // spostare/cancellare, così intanto vedi comunque tutti i file.
   state.rootHandle = handle;
   state.rootName = handle.name;
+  state.scanError = false;
   el.empty.style.display = "none";
   await runScan();
 
   if(state.files.length === 0){
     el.empty.style.display = "block";
-    el.badge.textContent = "cartella letta · 0 elementi";
-    el.stTitle.textContent = "Nessun file trovato in “" + handle.name + "”";
-    el.stText.innerHTML = "La cartella potrebbe essere vuota oppure il browser ne ha limitato l'accesso. Prova a sceglierne un'altra (per esempio una sottocartella dei Documenti) e concedi il permesso quando richiesto.";
+    if(state.scanError){
+      el.badge.textContent = "lettura interrotta";
+      el.stTitle.textContent = "Non sono riuscito a leggere “" + handle.name + "”";
+      el.stText.innerHTML = "Il browser ha negato l'accesso al contenuto. Prova a selezionare una sottocartella specifica (es. Documenti › una tua cartella) e, quando il browser lo chiede, scegli <b>Visualizza file</b>.";
+    } else {
+      el.badge.textContent = "cartella letta · 0 elementi";
+      el.stTitle.textContent = "“" + handle.name + "” non contiene file";
+      el.stText.innerHTML = "La cartella risulta vuota. Seleziona un'altra cartella per vederne il contenuto.";
+    }
   }
 }
 
@@ -515,62 +522,80 @@ async function ensureWrite(handle){
 async function runScan(){
   if(!state.rootHandle) return;
   state.deep = el.recursive.checked;
+  state.scanError = false;
   el.scanbar.classList.add("on");
-  try{
-    const files = [];
-    await scan(state.rootHandle, "", files, 0);
-    state.files = files;
-  }catch(err){
-    toast("Errore durante la lettura.", "err");
-    console.error(err);
-  }
+  const out = [];
+  await scan(state.rootHandle, "", out, 0);
+  state.files = out;            // assegno SEMPRE ciò che ho raccolto, anche se parziale
   el.scanbar.classList.remove("on");
   refresh();
 }
 
-const MAX_FILES = 20000;
-const MAX_DEPTH = 8;
+const MAX_FILES = 50000;
+const MAX_DEPTH = 10;
+const SKIP_FILES = new Set([".DS_Store", "Thumbs.db", "desktop.ini", ".localized"]);
+
+// Scansione resiliente: un singolo file o una sottocartella illeggibile NON
+// interrompe tutto. Ogni livello e ogni voce sono protetti da try/catch, così
+// i file già trovati restano sempre disponibili.
 async function scan(dirHandle, prefix, out, depth){
-  for await (const entry of dirHandle.values()){
-    if(out.length >= MAX_FILES) return;
-    if(entry.kind === "file"){
-      // Salto file di sistema irrilevanti
-      if(entry.name === ".DS_Store") continue;
-      let file;
-      try{ file = await entry.getFile(); }catch(_){ continue; }
-      out.push({
-        id: prefix + entry.name + "·" + file.size + "·" + file.lastModified,
-        name: entry.name,
-        relPath: prefix + entry.name,
-        size: file.size,
-        type: file.type || "",
-        mtime: file.lastModified || 0,
-        kind: kindOf(entry.name, file.type || ""),
-        isDir: false,
-        handle: entry,
-        parent: dirHandle,
-        selected: false
-      });
-    } else if(entry.kind === "directory"){
-      if(entry.name === "_FileDeck_Spostati") continue;
-      // Le cartelle di PRIMO livello compaiono come blocco spostabile/cancellabile
-      if(depth === 0){
-        let childCount = 0;
-        try{ for await (const _ of entry.values()){ childCount++; if(childCount >= 999) break; } }catch(_){}
-        out.push({
-          id: prefix + entry.name + "·dir",
-          name: entry.name,
-          relPath: prefix + entry.name,
-          size: 0, type: "", mtime: 0,
-          kind: "folder", isDir: true, childCount,
-          handle: entry, parent: dirHandle, selected: false
-        });
-      }
-      // Se richiesto, scendo dentro per elencare ANCHE i file contenuti
-      if(state.deep && depth < MAX_DEPTH){
-        await scan(entry, prefix + entry.name + "/", out, depth + 1);
+  let iterator;
+  try{ iterator = dirHandle.values(); }
+  catch(e){ console.warn("dir non leggibile:", prefix, e); state.scanError = true; return; }
+
+  try{
+    for await (const entry of iterator){
+      if(out.length >= MAX_FILES) return;
+      try{
+        if(entry.kind === "file"){
+          if(SKIP_FILES.has(entry.name)) continue;
+          let file;
+          try{ file = await entry.getFile(); }
+          catch(_){ continue; } // file non leggibile: lo salto, vado avanti
+          out.push({
+            id: prefix + entry.name + "·" + file.size + "·" + file.lastModified,
+            name: entry.name,
+            relPath: prefix + entry.name,
+            size: file.size,
+            type: file.type || "",
+            mtime: file.lastModified || 0,
+            kind: kindOf(entry.name, file.type || ""),
+            isDir: false,
+            handle: entry,
+            parent: dirHandle,
+            selected: false
+          });
+        } else if(entry.kind === "directory"){
+          if(entry.name === "_FileDeck_Spostati") continue;
+          // Le cartelle di PRIMO livello compaiono come blocco spostabile/cancellabile
+          if(depth === 0){
+            let childCount = 0;
+            try{ for await (const _ of entry.values()){ childCount++; if(childCount >= 999) break; } }catch(_){}
+            out.push({
+              id: prefix + entry.name + "·dir",
+              name: entry.name,
+              relPath: prefix + entry.name,
+              size: 0, type: "", mtime: 0,
+              kind: "folder", isDir: true, childCount,
+              handle: entry, parent: dirHandle, selected: false
+            });
+          }
+          // Se richiesto, scendo dentro per elencare ANCHE i file contenuti.
+          // La ricorsione è già protetta al suo interno: se una sottocartella
+          // non è leggibile, viene saltata senza fermare il resto.
+          if(state.deep && depth < MAX_DEPTH){
+            await scan(entry, prefix + entry.name + "/", out, depth + 1);
+          }
+        }
+      }catch(e){
+        console.warn("voce saltata:", entry && entry.name, e);
+        // continuo con la voce successiva
       }
     }
+  }catch(e){
+    console.warn("iterazione interrotta in:", prefix, e);
+    state.scanError = true;
+    // mantengo comunque tutto ciò che ho raccolto finora
   }
 }
 
@@ -828,7 +853,7 @@ el.move.addEventListener("click", async () => {
 
   let destRoot;
   try{
-    destRoot = await window.showDirectoryPicker({ mode:"readwrite", id:"filedeck-dest" });
+    destRoot = await window.showDirectoryPicker({ id:"filedeck-dest" });
   }catch(err){
     if(err && err.name === "AbortError") return;
     toast("Impossibile aprire la cartella di destinazione.", "err");
